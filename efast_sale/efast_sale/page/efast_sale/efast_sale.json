@@ -1,0 +1,27 @@
+{
+ "creation": "2026-05-14 00:00:00.000000",
+ "doctype": "Page",
+ "module": "eFast Sale",
+ "name": "efast-sale",
+ "page_name": "efast-sale",
+ "roles": [
+  {
+   "role": "Sales User"
+  },
+  {
+   "role": "Accounts User"
+  },
+  {
+   "role": "Sales Manager"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "standard": "No",
+ "system_page": 0,
+ "title": "eFast Sale"
+}
