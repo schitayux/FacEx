@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import frappe
 import json
-from frappe.utils import today, add_days
+from frappe.utils import today, add_days, getdate
 
 
 # ---------------------------------------------------------------------------
@@ -23,6 +23,28 @@ def has_efast_permission():
     return bool(allowed & set(roles))
 
 
+def create_custom_field_if_missing():
+    """
+    Crea el campo personalizado bfel_efast_sale en Sales Invoice si no existe.
+    """
+    if not frappe.db.exists("Custom Field", "Sales Invoice-bfel_efast_sale"):
+        try:
+            frappe.get_doc({
+                "doctype": "Custom Field",
+                "dt": "Sales Invoice",
+                "fieldname": "bfel_efast_sale",
+                "label": "Origen FacEx",
+                "fieldtype": "Check",
+                "insert_after": "naming_series",
+                "default": "0",
+                "read_only": 1,
+                "no_copy": 1
+            }).insert(ignore_permissions=True)
+            frappe.db.commit()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "eFast Sale: create_custom_field_if_missing")
+
+
 # ---------------------------------------------------------------------------
 # 1. Defaults para nueva factura
 # ---------------------------------------------------------------------------
@@ -33,6 +55,7 @@ def get_defaults():
     Retorna valores por defecto para inicializar una nueva factura:
     naming_series, company, warehouse, cost_center, currency, taxes_and_charges.
     """
+    create_custom_field_if_missing()
     defaults = frappe.defaults.get_defaults()
     company = defaults.get("company") or frappe.db.get_single_value(
         "Global Defaults", "default_currency"
@@ -81,12 +104,16 @@ def get_defaults():
     # Moneda de la empresa
     currency = frappe.db.get_value("Company", company, "default_currency") or "GTQ"
 
+    # Selling Settings no tiene campo payment_terms en ERPNext v15
+    default_payment_terms = ""
+
     return {
         "company": company,
         "naming_series": naming_series,
         "default_warehouse": default_warehouse,
         "default_cost_center": default_cost_center,
         "default_taxes_and_charges": default_taxes,
+        "default_payment_terms_template": default_payment_terms,
         "currency": currency,
         "posting_date": today(),
         "due_date": today(),
@@ -161,21 +188,34 @@ def get_item_details(item_code: str, company: str = "", customer: str = "",
     if item_price:
         rate = float(item_price)
 
-    # Almacén por defecto del item o el pasado como parámetro
-    item_warehouse = (
-        warehouse
-        or (item.item_defaults[0].default_warehouse if item.item_defaults else "")
-        or frappe.db.get_value("Warehouse",
-            {"company": company or "", "is_group": 0, "disabled": 0}, "name")
-        or ""
-    )
+    # Almacén: parámetro > item_defaults filtrado por empresa > fallback empresa
+    item_warehouse = warehouse or ""
+    if not item_warehouse and item.item_defaults:
+        _row = next((d for d in item.item_defaults if d.company == company),
+                    item.item_defaults[0])
+        item_warehouse = _row.get("default_warehouse") or ""
+    if not item_warehouse and company:
+        item_warehouse = (
+            frappe.db.get_value("Warehouse",
+                {"company": company, "is_group": 0, "disabled": 0}, "name")
+            or ""
+        )
 
-    # Centro de costo por defecto del item
-    item_cost_center = (
-        (item.item_defaults[0].buying_cost_center if item.item_defaults else "")
-        or (item.item_defaults[0].expense_account if item.item_defaults else "")
-        or ""
-    )
+    # Centro de costo: selling_cost_center > buying_cost_center > fallback empresa
+    item_cost_center = ""
+    if item.item_defaults:
+        _row = next((d for d in item.item_defaults if d.company == company),
+                    item.item_defaults[0])
+        item_cost_center = (
+            _row.get("selling_cost_center") or _row.get("buying_cost_center") or ""
+        )
+    if not item_cost_center and company:
+        item_cost_center = (
+            frappe.db.get_value("Cost Center",
+                {"company": company, "is_group": 0, "disabled": 0},
+                "name", order_by="lft asc")
+            or ""
+        )
 
     return {
         "item_code": item.name,
@@ -208,6 +248,10 @@ def save_draft(doc_json: str):
     if is_new:
         data.pop("name", None)
         data["doctype"] = "Sales Invoice"
+        # Bug fix: si no se envían filas de taxes pero hay plantilla, dejar que ERPNext
+        # las compute desde taxes_and_charges (evita primera factura sin impuestos)
+        if not data.get("taxes") and data.get("taxes_and_charges"):
+            data.pop("taxes", None)
         doc = frappe.get_doc(data)
     else:
         # Verificar que el doc existe y está en borrador
@@ -227,7 +271,8 @@ def save_draft(doc_json: str):
         for field in (
             "naming_series", "customer", "posting_date", "due_date",
             "payment_terms_template", "terms", "taxes_and_charges",
-            "bfel_nit", "bfel_status", "company",
+            "bfel_nit", "bfel_nombre", "bfel_status", "bfel_escenario_exento",
+            "es_fiscal", "update_stock", "company", "bfel_efast_sale",
         ):
             if field in data:
                 setattr(doc, field, data[field])
@@ -239,10 +284,21 @@ def save_draft(doc_json: str):
                 item_row.pop("name", None)  # forzar nueva row
                 doc.append("items", item_row)
 
-        # Reconstruir taxes si se envían
-        if "taxes" in data and data["taxes"] is not None:
-            # Solo reemplazar si se envió explícitamente el array
-            pass  # Las taxes se recalculan desde taxes_and_charges en set_missing_values
+        # Bug fix: solo reemplazar taxes si se envían filas reales.
+        # Si viene lista vacía pero hay plantilla, no borrar (deja a ERPNext gestionar).
+        if "taxes" in data and isinstance(data.get("taxes"), list):
+            if data["taxes"]:
+                doc.taxes = []
+                for tax_row in data["taxes"]:
+                    tax_row.pop("name", None)
+                    doc.append("taxes", tax_row)
+            elif not data.get("taxes_and_charges"):
+                # Plantilla fue eliminada explícitamente → limpiar taxes
+                doc.taxes = []
+
+    # Bug fix: force ERPNext to compute taxes from template if no taxes are provided
+    if doc.get("taxes_and_charges") and not doc.get("taxes"):
+        doc.append_taxes_from_master()
 
     doc.flags.ignore_permissions = False
     doc.save()
@@ -276,6 +332,32 @@ def submit_invoice(name: str):
         "status": doc.status,
         "docstatus": doc.docstatus,
         "grand_total": doc.grand_total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 4b. Anular (cancel)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def cancel_invoice(name: str):
+    """
+    Cancela un Sales Invoice a nivel de ERPNext.
+    Solo para facturas validadas (docstatus 1) que NO han sido certificadas en FEL.
+    """
+    name = (name or "").strip()
+    doc = frappe.get_doc("Sales Invoice", name)
+
+    if doc.docstatus != 1:
+        frappe.throw("Solo se puede anular una factura Validada.")
+        
+    doc.cancel()
+    frappe.db.commit()
+
+    return {
+        "success": True,
+        "name": doc.name,
+        "docstatus": doc.docstatus,
     }
 
 
@@ -343,9 +425,63 @@ def send_invoice_email(name: str, recipients: str = "", print_format: str = ""):
 # 8. Print formats disponibles
 # ---------------------------------------------------------------------------
 
+def _sync_custom_print_formats():
+    """
+    Sincroniza dinámicamente los formatos de impresión 'Cotización FacEx' y
+    'Recibo de Pago FacEx' desde los archivos locales de plantilla html y css.
+    """
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    templates = {
+        "Cotización FacEx": {
+            "html": os.path.join(base_dir, "templates", "print_formats", "cotizacion_facex.html"),
+            "css": os.path.join(base_dir, "templates", "print_formats", "cotizacion_facex.css"),
+        },
+        "Recibo de Pago FacEx": {
+            "html": os.path.join(base_dir, "templates", "print_formats", "recibo_pago_facex.html"),
+            "css": os.path.join(base_dir, "templates", "print_formats", "recibo_pago_facex.css"),
+        }
+    }
+    
+    for name, paths in templates.items():
+        try:
+            if not os.path.exists(paths["html"]) or not os.path.exists(paths["css"]):
+                continue
+                
+            with open(paths["html"], "r", encoding="utf-8") as f:
+                html_content = f.read()
+            with open(paths["css"], "r", encoding="utf-8") as f:
+                css_content = f.read()
+                
+            if frappe.db.exists("Print Format", name):
+                pf = frappe.get_doc("Print Format", name)
+                if pf.html != html_content or pf.css != css_content:
+                    pf.html = html_content
+                    pf.css = css_content
+                    pf.print_format_type = "Jinja"
+                    pf.save(ignore_permissions=True)
+                    frappe.db.commit()
+            else:
+                frappe.get_doc({
+                    "doctype": "Print Format",
+                    "name": name,
+                    "doc_type": "Sales Invoice",
+                    "print_format_type": "Jinja",
+                    "html": html_content,
+                    "css": css_content,
+                    "standard": "No"
+                }).insert(ignore_permissions=True)
+                frappe.db.commit()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), f"eFast Sale: sync print format {name}")
+
+
 @frappe.whitelist()
 def get_print_formats():
     """Retorna print formats disponibles para Sales Invoice."""
+    # Sincronizar formatos personalizados antes de retornar la lista
+    _sync_custom_print_formats()
+    
     formats = frappe.db.get_all(
         "Print Format",
         filters={"doc_type": "Sales Invoice", "disabled": 0},
@@ -353,6 +489,52 @@ def get_print_formats():
         order_by="name asc",
     )
     return [f["name"] for f in formats]
+
+
+
+# ---------------------------------------------------------------------------
+# Helper interno
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# 9. Guardar pagos eFast (custom child table)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def save_payments(invoice_name: str, payments_json: str, pagado: str = "0"):
+    """
+    Guarda los registros de pago en la tabla hija custom_efast_payments
+    y actualiza el campo custom_pagado.
+    Permite edición en cualquier estado (borrador o validada).
+    """
+    import json as _json
+
+    name = (invoice_name or "").strip()
+    payments = _json.loads(payments_json) if isinstance(payments_json, str) else (payments_json or [])
+    pagado_val = 1 if str(pagado) in ("1", "true", "True") else 0
+
+    doc = frappe.get_doc("Sales Invoice", name)
+    doc.custom_pagado = pagado_val
+    doc.custom_efast_payments = []
+
+    for row in payments:
+        doc.append("custom_efast_payments", {
+            "payment_method": row.get("payment_method") or "Efectivo",
+            "payment_date": row.get("payment_date") or today(),
+            "reference": row.get("reference") or "",
+            "amount": float(row.get("amount") or 0),
+        })
+
+    doc.flags.ignore_validate_update_after_submit = True
+    doc.save(ignore_permissions=False)
+    frappe.db.commit()
+
+    total_paid = sum(float(r.get("amount") or 0) for r in payments)
+    return {
+        "success": True,
+        "total_paid": total_paid,
+        "pagado": pagado_val,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -368,3 +550,190 @@ def _safe_doc_dict(doc) -> dict:
         if d.get(field) is None:
             d[field] = 0.0
     return d
+
+
+# ---------------------------------------------------------------------------
+# 10. API para Reportes del Tablero / Dashboard
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_dashboard_stats(start_date=None, end_date=None, customer=None, item_code=None):
+    """
+    Calcula métricas y reportes dinámicos para el Tablero FaEx.
+    """
+    if not has_efast_permission():
+        frappe.throw("No tiene permisos para ver este tablero.", frappe.PermissionError)
+
+    # 1. Construir filtros base para Sales Invoice
+    filters = {"docstatus": ["in", [0, 1]]}  # Borradores y Validadas
+    if start_date and end_date:
+        filters["posting_date"] = ["between", [start_date, end_date]]
+    if customer:
+        filters["customer"] = customer
+
+    # Cargar facturas
+    invoices = frappe.db.get_all(
+        "Sales Invoice",
+        filters=filters,
+        fields=["name", "customer", "customer_name", "posting_date", "grand_total", "bfel_status", "bfel_uuid", "docstatus"],
+        order_by="posting_date desc, creation desc"
+    )
+
+    # 2. Ventas del día (hoy)
+    today_date = getdate(today())
+    today_invoices = [inv for inv in invoices if getdate(inv.posting_date) == today_date]
+    today_total = sum(float(inv.grand_total or 0) for inv in today_invoices)
+
+    # 3. Ventas del mes (mes actual)
+    month_start_date = getdate(today()[:7] + "-01")
+    month_invoices = [inv for inv in invoices if getdate(inv.posting_date) >= month_start_date]
+    month_total = sum(float(inv.grand_total or 0) for inv in month_invoices)
+
+    # 4. Detalle de items vendidos
+    invoice_names = [inv.name for inv in invoices]
+    if invoice_names:
+        item_filters = {
+            "parent": ["in", invoice_names]
+        }
+        if item_code:
+            item_filters["item_code"] = item_code
+
+        # Query detallado de productos
+        item_details = frappe.db.get_all(
+            "Sales Invoice Item",
+            filters=item_filters,
+            fields=["item_code", "item_name", "qty", "rate", "amount"]
+        )
+    else:
+        item_details = []
+
+    # Agrupar por item
+    items_summary = {}
+    for d in item_details:
+        code = d.item_code
+        if not code:
+            continue
+        if code not in items_summary:
+            items_summary[code] = {
+                "item_code": code,
+                "item_name": d.item_name or code,
+                "qty": 0.0,
+                "amount": 0.0
+            }
+        items_summary[code]["qty"] += float(d.qty or 0)
+        items_summary[code]["amount"] += float(d.amount or 0)
+
+    items_summary_list = sorted(items_summary.values(), key=lambda x: x["amount"], reverse=True)
+
+    # 5. Conteo FEL
+    fel_processed = sum(1 for inv in invoices if inv.bfel_status == "02 Procesada")
+    fel_pending = len(invoices) - fel_processed
+
+    # 6. Estadísticas específicas de cliente (si se seleccionó cliente)
+    customer_stats = {}
+    if customer:
+        cust_invoices = [inv for inv in invoices if inv.customer == customer]
+        total_sales = sum(float(inv.grand_total or 0) for inv in cust_invoices)
+        
+        # Obtener datos rápidos del límite de crédito y saldo pendiente
+        cust_doc = frappe.get_cached_doc("Customer", customer)
+        credit_limit = 0.0
+        if cust_doc.credit_limits:
+            credit_limit = float(cust_doc.credit_limits[0].credit_limit or 0)
+            
+        outstanding_balance = frappe.db.get_value(
+            "Sales Invoice",
+            {"customer": customer, "docstatus": 1},
+            "sum(outstanding_amount)"
+        ) or 0.0
+
+        customer_stats = {
+            "total_sales": total_sales,
+            "invoice_count": len(cust_invoices),
+            "credit_limit": credit_limit,
+            "outstanding_balance": float(outstanding_balance),
+        }
+
+    return {
+        "today_total": today_total,
+        "today_count": len(today_invoices),
+        "month_total": month_total,
+        "month_count": len(month_invoices),
+        "fel_processed": fel_processed,
+        "fel_pending": fel_pending,
+        "invoices": invoices[:50],  # Limitar a las últimas 50 facturas en lista rápida
+        "items_summary": items_summary_list[:20],  # Top 20 productos
+        "customer_stats": customer_stats
+    }
+
+
+@frappe.whitelist()
+def run_permissions_setup():
+    role = "efast_sale"
+    
+    # Doctypes to associate
+    doctypes_all = [
+        "Sales Invoice",
+        "eFast Invoice Payment",
+        "Item",
+        "Customer",
+        "Print Format",
+        "Warehouse",
+        "Sales Taxes and Charges Template",
+        "Payment Terms Template",
+        "Payment Term",
+        "Terms and Conditions",
+        "Customer Credit Limit"
+    ]
+    
+    # Permissions dictionary
+    perm_dict = {
+        "read": 1, "write": 1, "create": 1, "delete": 1,
+        "submit": 1, "cancel": 1, "amend": 1, "print": 1,
+        "email": 1, "report": 1, "import": 1, "export": 1, "share": 1
+    }
+    
+    for dt in doctypes_all:
+        try:
+            meta = frappe.get_meta(dt)
+            applicable_perms = {}
+            for k, v in perm_dict.items():
+                if meta.istable and k in ["submit", "cancel", "amend"]:
+                    continue
+                applicable_perms[k] = v
+            
+            filters = {"parent": dt, "role": role, "permlevel": 0}
+            name = frappe.db.get_value("Custom DocPerm", filters)
+            if name:
+                doc = frappe.get_doc("Custom DocPerm", name)
+                for k, v in applicable_perms.items():
+                    setattr(doc, k, v)
+                doc.save(ignore_permissions=True)
+            else:
+                doc = frappe.get_doc({
+                    "doctype": "Custom DocPerm",
+                    "parent": dt,
+                    "parenttype": "DocType",
+                    "parentfield": "permissions",
+                    "role": role,
+                    "permlevel": 0,
+                    **applicable_perms
+                })
+                doc.insert(ignore_permissions=True)
+                
+            frappe.clear_cache(doctype=dt)
+        except Exception:
+            pass
+            
+    try:
+        page = frappe.get_doc("Page", "efast-sale")
+        if not any(r.role == role for r in page.roles):
+            page.append("roles", {"role": role})
+            page.save(ignore_permissions=True)
+    except Exception:
+        pass
+        
+    frappe.db.commit()
+    return "Permissions successfully set for role efast_sale!"
+
+

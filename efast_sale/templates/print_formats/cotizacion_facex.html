@@ -1,0 +1,100 @@
+<div class="print-format-wrapper">
+    <div class="header-container">
+        <div class="company-section">
+            <h2 class="company-name">{{ doc.company }}</h2>
+            <p class="company-detail">NIT: {{ frappe.db.get_value("Company", doc.company, "tax_id") or "—" }}</p>
+            <p class="company-detail">{{ frappe.db.get_value("Company", doc.company, "default_address") or "" }}</p>
+        </div>
+        <div class="doc-section">
+            <h1 class="doc-title">COTIZACIÓN</h1>
+            <p class="doc-meta"><strong>No. Cotización:</strong> {{ doc.name }}</p>
+            <p class="doc-meta"><strong>Fecha Emisión:</strong> {{ doc.get_formatted("posting_date") or doc.posting_date }}</p>
+            <p class="doc-meta"><strong>Válido hasta:</strong> {{ doc.get_formatted("due_date") or doc.due_date }}</p>
+        </div>
+    </div>
+
+    <div class="customer-container">
+        <h3 class="section-title">Datos del Cliente</h3>
+        <div class="customer-details">
+            <div class="detail-row"><strong>Cliente:</strong> {{ doc.bfel_nombre or doc.customer_name or doc.customer }}</div>
+            <div class="detail-row"><strong>NIT:</strong> {{ doc.bfel_nit or "C.F." }}</div>
+            <div class="detail-row"><strong>Moneda:</strong> {{ doc.currency }}</div>
+        </div>
+    </div>
+
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th class="th-num">#</th>
+                <th class="th-code">Código</th>
+                <th class="th-desc">Descripción</th>
+                <th class="th-qty text-right">Cant.</th>
+                <th class="th-uom">UM</th>
+                <th class="th-rate text-right">Precio Unit.</th>
+                <th class="th-disc text-right">Desc %</th>
+                <th class="th-total text-right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in doc.items %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ item.item_code }}</td>
+                <td>
+                    <div class="item-name">{{ item.item_name }}</div>
+                    {% if item.description and item.description != item.item_name %}
+                    <div class="item-desc">{{ item.description }}</div>
+                    {% endif %}
+                </td>
+                <td class="text-right">{{ item.qty }}</td>
+                <td>{{ item.uom }}</td>
+                <td class="text-right">{{ doc.currency }} {{ "{:,.2f}".format(item.rate) }}</td>
+                <td class="text-right">{{ item.discount_percentage or 0 }}%</td>
+                <td class="text-right">{{ doc.currency }} {{ "{:,.2f}".format(item.amount) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="summary-container">
+        <div class="terms-section">
+            {% if doc.terms %}
+            <h4 class="section-title">Términos y Condiciones</h4>
+            <div class="terms-content">{{ doc.terms }}</div>
+            {% endif %}
+        </div>
+        <div class="totals-section">
+            <div class="total-row">
+                <span class="total-label">Subtotal:</span>
+                <span class="total-value">{{ doc.currency }} {{ "{:,.2f}".format(doc.total) }}</span>
+            </div>
+            {% if doc.discount_amount %}
+            <div class="total-row discount">
+                <span class="total-label">Descuento:</span>
+                <span class="total-value">- {{ doc.currency }} {{ "{:,.2f}".format(doc.discount_amount) }}</span>
+            </div>
+            {% endif %}
+            {% if doc.total_taxes_and_charges %}
+            <div class="total-row">
+                <span class="total-label">Impuestos:</span>
+                <span class="total-value">{{ doc.currency }} {{ "{:,.2f}".format(doc.total_taxes_and_charges) }}</span>
+            </div>
+            {% endif %}
+            <div class="total-row grand-total">
+                <span class="total-label">TOTAL:</span>
+                <span class="total-value">{{ doc.currency }} {{ "{:,.2f}".format(doc.grand_total) }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="signature-container">
+        <div class="signature-line">
+            <div class="line"></div>
+            <div class="label">Emitido por</div>
+        </div>
+        <div class="signature-line">
+            <div class="line"></div>
+            <div class="label">Aceptado por (Cliente)</div>
+        </div>
+    </div>
+</div>

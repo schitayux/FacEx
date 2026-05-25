@@ -6,7 +6,7 @@ app_email = "soporte@chappsa.com"
 app_license = "mit"
 
 # La Page se auto-descubre desde efast_sale/efast_sale/page/efast_sale/
-# No se requieren entradas adicionales para el page JS/CSS aquí.
+# DocType eFast Invoice Payment (tabla hija para pagos) se auto-descubre desde doctype/
 
 # Roles que aparecerán en el menú de la app (opcional)
 # add_to_apps_screen = [
