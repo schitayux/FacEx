@@ -6,6 +6,18 @@ import frappe
 
 
 def execute():
+    # 1. Asegurar que el rol 'efast_sale' exista en la base de datos
+    if not frappe.db.exists("Role", "efast_sale"):
+        try:
+            frappe.get_doc({
+                "doctype": "Role",
+                "role_name": "efast_sale",
+                "desk_access": 1
+            }).insert(ignore_permissions=True)
+        except Exception:
+            pass
+
+    # 2. Crear campos personalizados
     _create_if_missing(
         dt="Sales Invoice",
         fieldname="custom_pagado",

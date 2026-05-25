@@ -671,6 +671,18 @@ def get_dashboard_stats(start_date=None, end_date=None, customer=None, item_code
 def run_permissions_setup():
     role = "efast_sale"
     
+    # 1. Asegurar que el rol 'efast_sale' exista en la base de datos
+    if not frappe.db.exists("Role", role):
+        try:
+            frappe.get_doc({
+                "doctype": "Role",
+                "role_name": role,
+                "desk_access": 1
+            }).insert(ignore_permissions=True)
+            frappe.db.commit()
+        except Exception:
+            pass
+
     # Doctypes to associate
     doctypes_all = [
         "Sales Invoice",
