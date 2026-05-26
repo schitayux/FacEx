@@ -17,16 +17,20 @@ def search_customer(txt: str):
     txt = txt.strip()
     rows = frappe.db.sql(
         """
-        SELECT name, customer_name, tax_id
+        SELECT name, customer_name, tax_id, bfel_id_receptor
         FROM `tabCustomer`
         WHERE disabled = 0
-          AND (name LIKE %(q)s OR customer_name LIKE %(q)s OR tax_id LIKE %(q)s)
+          AND (name LIKE %(q)s OR customer_name LIKE %(q)s OR tax_id LIKE %(q)s OR bfel_id_receptor LIKE %(q)s)
         ORDER BY customer_name ASC
         LIMIT 20
         """,
         {"q": f"%{txt}%"},
         as_dict=True,
     )
+    for row in rows:
+        nit = row.get("bfel_id_receptor") or row.get("tax_id") or ""
+        row["tax_id"] = nit
+        row["bfel_id_receptor"] = nit
     return rows
 
 
@@ -34,11 +38,12 @@ def search_customer(txt: str):
 def get_customer(name: str):
     """Retorna los campos relevantes del cliente para el diálogo."""
     doc = frappe.get_doc("Customer", name)
+    nit = doc.get("bfel_id_receptor") or doc.get("tax_id") or ""
     return {
         "name": doc.name,
         "customer_name": doc.customer_name or "",
         "bfel_identificacion": doc.get("bfel_identificacion") or "",
-        "bfel_id_receptor": doc.get("bfel_id_receptor") or "",
+        "bfel_id_receptor": nit,
         "custom_direccion": doc.get("custom_direccion") or "",
         "custom_departamento": doc.get("custom_departamento") or "",
         "custom_telefono": doc.get("custom_telefono") or "",
@@ -78,6 +83,22 @@ def create_or_update_customer(data_json: str):
         if field in data:
             setattr(doc, field, data[field])
 
+    # Sincronizar tax_id y bfel_id_receptor
+    if doc.meta.has_field("bfel_id_receptor"):
+        nit = doc.get("bfel_id_receptor") or doc.get("tax_id") or ""
+        if nit:
+            doc.bfel_id_receptor = nit
+            doc.tax_id = nit
+
     doc.save(ignore_permissions=False)
     frappe.db.commit()
     return {"name": doc.name, "customer_name": doc.customer_name}
+
+
+def sync_customer_nit(doc, method=None):
+    """Sincroniza tax_id y bfel_id_receptor antes de guardar el cliente."""
+    if doc.meta.has_field("bfel_id_receptor"):
+        nit = doc.get("bfel_id_receptor") or doc.get("tax_id") or ""
+        if nit:
+            doc.bfel_id_receptor = nit
+            doc.tax_id = nit

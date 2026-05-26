@@ -18,3 +18,10 @@ app_license = "mit"
 #         "has_permission": "efast_sale.api.invoice.has_efast_permission",
 #     }
 # ]
+
+doc_events = {
+    "Customer": {
+        "validate": "efast_sale.api.customer.sync_customer_nit"
+    }
+}
+

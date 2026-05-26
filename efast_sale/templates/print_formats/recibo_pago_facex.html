@@ -1,16 +1,42 @@
+<script>
+    document.title = "{{ doc.name }}";
+</script>
+{% set bs = frappe.get_all("BFEL Settings", filters={"company": doc.company, "enabled": 1}, fields=["company_nit", "isr_regime", "direccionemisor", "paisemisor"], limit=1) %}
+{% set bfel = bs[0] if bs else {} %}
+{% set company_logo = frappe.db.get_value("Company", doc.company, "company_logo") %}
+
 <div class="print-format-wrapper">
-    <div class="header-container">
-        <div class="company-section">
-            <h2 class="company-name">{{ doc.company }}</h2>
-            <p class="company-detail">NIT: {{ frappe.db.get_value("Company", doc.company, "tax_id") or "—" }}</p>
-            <p class="company-detail">{{ frappe.db.get_value("Company", doc.company, "default_address") or "" }}</p>
+    <div class="header-container" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+        <div class="logo-and-company" style="display: flex; align-items: center; gap: 15px;">
+            {% if company_logo %}
+                <img src="{{ company_logo }}" style="max-height: 70px; max-width: 150px; object-fit: contain;" alt="Logo">
+            {% endif %}
+            <div class="company-section">
+                <h2 class="company-name" style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;">{{ doc.company }}</h2>
+                <p class="company-detail" style="margin: 2px 0 0 0; font-size: 11px; color: #64748b;"><strong>NIT:</strong> {{ bfel.company_nit or frappe.db.get_value("Company", doc.company, "tax_id") or "—" }}</p>
+                {% if bfel.isr_regime %}
+                    <p class="company-detail" style="margin: 2px 0 0 0; font-size: 11px; color: #64748b;"><strong>Régimen:</strong> {{ bfel.isr_regime }}</p>
+                {% endif %}
+                {% if bfel.direccionemisor %}
+                    <p class="company-detail" style="margin: 2px 0 0 0; font-size: 11px; color: #64748b;"><strong>Dirección:</strong> {{ bfel.direccionemisor }}</p>
+                {% endif %}
+                {% if bfel.paisemisor or frappe.db.get_value("Company", doc.company, "country") %}
+                    <p class="company-detail" style="margin: 2px 0 0 0; font-size: 11px; color: #64748b;"><strong>País:</strong> {{ bfel.paisemisor or frappe.db.get_value("Company", doc.company, "country") }}</p>
+                {% endif %}
+            </div>
         </div>
-        <div class="doc-section">
-            <h1 class="doc-title">RECIBO DE PAGO</h1>
-            <p class="doc-meta"><strong>No. Factura:</strong> {{ doc.name }}</p>
-            <p class="doc-meta"><strong>Fecha Recibo:</strong> {{ doc.posting_date }}</p>
+        <div class="doc-section" style="text-align: right;">
+            <h1 class="doc-title" style="margin: 0; font-size: 20px; font-weight: 800; color: #2dc653; letter-spacing: 0.5px;">RECIBO DE PAGO</h1>
+            <p class="doc-meta" style="margin: 4px 0 0 0; font-size: 11px; color: #475569;"><strong>No. Factura:</strong> {{ doc.name }}</p>
+            <p class="doc-meta" style="margin: 2px 0 0 0; font-size: 11px; color: #475569;"><strong>Fecha Recibo:</strong> {{ doc.posting_date }}</p>
             {% if doc.bfel_uuid %}
-            <p class="doc-meta"><strong>UUID FEL:</strong> {{ doc.bfel_uuid }}</p>
+            <p class="doc-meta" style="margin: 2px 0 0 0; font-size: 11px; color: #475569;"><strong>UUID FEL:</strong> {{ doc.bfel_uuid }}</p>
+            {% endif %}
+            {% if doc.bfel_docto_serie %}
+            <p class="doc-meta" style="margin: 2px 0 0 0; font-size: 11px; color: #475569;"><strong>Serie DTE:</strong> {{ doc.bfel_docto_serie }}</p>
+            {% endif %}
+            {% if doc.bfel_docto_no %}
+            <p class="doc-meta" style="margin: 2px 0 0 0; font-size: 11px; color: #475569;"><strong>Número DTE:</strong> {{ doc.bfel_docto_no }}</p>
             {% endif %}
         </div>
     </div>
@@ -89,5 +115,9 @@
             <div class="line"></div>
             <div class="label">Firma Cliente</div>
         </div>
+    </div>
+
+    <div class="slogan-footer" style="margin-top: 30px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px dashed #e2e8f0; padding-top: 10px;">
+        FacEx solución implementada por Soluciones Integrales Chapp, S.A.
     </div>
 </div>

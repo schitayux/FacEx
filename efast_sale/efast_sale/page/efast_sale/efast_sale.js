@@ -73,6 +73,7 @@ class EFastSalePage {
 				});
 
 				this._setup_dashboard_controls();
+				this._setup_maintenance();
 
 				const params = frappe.utils.get_url_to_dict();
 				if (params.invoice) {
@@ -154,9 +155,13 @@ class EFastSalePage {
 
   <!-- ── NAV HEADER ────────────────────────────────────────────────── -->
   <div class="ef-navbar-top">
-     <div class="ef-navbar-brand">
+     <div class="ef-navbar-brand" style="display: flex; align-items: center; gap: 8px;">
        <svg class="ef-bolt" width="20" height="20" viewBox="0 0 24 24" fill="#153375"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
        <span style="font-weight: 800; color: #153375;">FacEx Portal</span>
+       <button id="ef-btn-toggle-fullscreen" class="ef-btn" style="margin-left: 12px; font-size: 11px; padding: 4px 10px; border-radius: 6px; display: flex; align-items: center; gap: 5px; border: 1px solid var(--ef-border); background: var(--ef-card); color: var(--ef-text);" title="Alternar Modo Enfoque (Pantalla Completa)">
+         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+         <span id="ef-fullscreen-btn-text">Modo Enfoque</span>
+       </button>
      </div>
      <div class="ef-navbar-menu">
        <button class="ef-nav-btn ef-nav-active" data-view="dashboard">
@@ -170,6 +175,10 @@ class EFastSalePage {
        <button class="ef-nav-btn" data-view="reports">
          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><path d="M3 20h18"/></svg>
          <span>Reportes y Recibos</span>
+       </button>
+       <button class="ef-nav-btn" data-view="maintenance">
+         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/><circle cx="12" cy="12" r="3"/></svg>
+         <span>Mantenimiento</span>
        </button>
      </div>
   </div>
@@ -630,10 +639,6 @@ class EFastSalePage {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
           <span>Recibos y Pagos</span>
         </button>
-        <button class="ef-report-nav-btn" data-report="uncertified_invoices">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <span>Errores FEL</span>
-        </button>
         <button class="ef-report-nav-btn" data-report="sales_growth_analysis">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
           <span>Crecimiento de Ventas</span>
@@ -854,6 +859,161 @@ class EFastSalePage {
     </div>
   </div>
 
+  <!-- ── VIEW 4: MAINTENANCE / MANTENIMIENTO ───────────────────────── -->
+  <div id="ef-maintenance-view" class="ef-view-content" style="display:none; padding: 24px; max-width: 1200px; margin: 0 auto; font-family: var(--ef-font);">
+    <div style="background: linear-gradient(135deg, #153375, #4361ee); color: white; padding: 20px 24px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 10px 15px -3px rgba(21,51,117,0.2);">
+      <h1 style="margin:0; font-size: 20px; font-weight: 800; color: #ffffff !important;">Panel de Mantenimiento</h1>
+      <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 12px; color: #ffffff !important;">Administra clientes, catálogo de productos y precios estándar de venta.</p>
+    </div>
+
+    <!-- Sub-navigation for Maintenance -->
+    <div class="ef-tabs-nav" style="margin-bottom: 20px;">
+      <button class="ef-tab-btn ef-maint-tab-btn ef-tab-active" data-maint-tab="clientes">
+        Clientes
+      </button>
+      <button class="ef-tab-btn ef-maint-tab-btn" data-maint-tab="productos">
+        Productos
+      </button>
+      <button class="ef-tab-btn ef-maint-tab-btn" data-maint-tab="precios">
+        Precios Standard Selling
+      </button>
+    </div>
+
+    <!-- Maint Tab Content: Clientes -->
+    <div class="ef-maint-tab-content" id="ef-maint-tab-clientes">
+      <div style="display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start;">
+        <div class="ef-analytics-card" style="box-shadow: var(--ef-shadow); padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span class="ef-analytics-card-title" style="margin:0;">Listado de Clientes</span>
+            <button id="ef-maint-cust-btn-load" class="ef-btn ef-btn-sm ef-btn-secondary" style="padding:2px 8px; font-size:10px;">Cargar Lista</button>
+          </div>
+          <input type="text" id="ef-maint-cust-search" class="ef-input" placeholder="Buscar cliente..." style="width:100%; margin-bottom:12px;" />
+          <div id="ef-maint-cust-list" style="max-height: 400px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
+        <div class="ef-analytics-card" style="box-shadow: var(--ef-shadow); padding:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--ef-border); padding-bottom:10px;">
+            <span style="font-weight:700; color:var(--ef-primary); font-size:16px;" id="ef-maint-cust-title">Nuevo Cliente</span>
+            <button id="ef-maint-cust-btn-new" class="ef-btn ef-btn-sm ef-btn-secondary">+ Nuevo</button>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="ef-field-group">
+              <label class="ef-label">Nombre del Cliente <span class="ef-req">*</span></label>
+              <input type="text" id="ef-maint-cust-name" class="ef-input" style="width:100%" />
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">NIT / Identificación (FEL)</label>
+              <input type="text" id="ef-maint-cust-ident" class="ef-input" style="width:100%" />
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">ID Receptor (FEL)</label>
+              <input type="text" id="ef-maint-cust-receptor" class="ef-input" style="width:100%" />
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">Teléfono</label>
+              <input type="text" id="ef-maint-cust-phone" class="ef-input" style="width:100%" />
+            </div>
+            <div class="ef-field-group" style="grid-column: span 2;">
+              <label class="ef-label">Dirección</label>
+              <input type="text" id="ef-maint-cust-addr" class="ef-input" style="width:100%" />
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">Departamento</label>
+              <input type="text" id="ef-maint-cust-dept" class="ef-input" style="width:100%" />
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">Lista de precios</label>
+              <div id="ef-maint-cust-price-list-ctrl" class="ef-link-ctrl" style="min-height: 32px;"></div>
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">Condiciones de pago</label>
+              <div id="ef-maint-cust-payment-terms-ctrl" class="ef-link-ctrl" style="min-height: 32px;"></div>
+            </div>
+          </div>
+          <div style="margin-top:20px; text-align:right;">
+            <button id="ef-maint-cust-btn-delete" class="ef-btn" style="background:#ef4444; color:white; padding:8px 24px; display:none; margin-right:8px;">Eliminar Cliente</button>
+            <button id="ef-maint-cust-btn-save" class="ef-btn ef-btn-primary" style="padding:8px 24px;">Guardar Cliente</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maint Tab Content: Productos -->
+    <div class="ef-maint-tab-content" id="ef-maint-tab-productos" style="display:none;">
+      <div style="display: grid; grid-template-columns: 320px 1fr; gap: 24px; align-items: start;">
+        <div class="ef-analytics-card" style="box-shadow: var(--ef-shadow); padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span class="ef-analytics-card-title" style="margin:0;">Listado de Productos</span>
+            <button id="ef-maint-item-btn-load" class="ef-btn ef-btn-sm ef-btn-secondary" style="padding:2px 8px; font-size:10px;">Cargar Lista</button>
+          </div>
+          <input type="text" id="ef-maint-item-search" class="ef-input" placeholder="Buscar producto..." style="width:100%; margin-bottom:12px;" />
+          <div id="ef-maint-item-list" style="max-height: 400px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
+        <div class="ef-analytics-card" style="box-shadow: var(--ef-shadow); padding:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--ef-border); padding-bottom:10px;">
+            <span style="font-weight:700; color:var(--ef-primary); font-size:16px;" id="ef-maint-item-title">Nuevo Producto</span>
+            <button id="ef-maint-item-btn-new" class="ef-btn ef-btn-sm ef-btn-secondary">+ Nuevo</button>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="ef-field-group">
+              <label class="ef-label">Código del Ítem <span class="ef-req">*</span></label>
+              <input type="text" id="ef-maint-item-code" class="ef-input" style="width:100%" placeholder="Ej. PROD-001" />
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">Nombre del Ítem <span class="ef-req">*</span></label>
+              <input type="text" id="ef-maint-item-name" class="ef-input" style="width:100%" />
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">Unidad de Medida (UOM)</label>
+              <div id="ef-maint-item-uom-ctrl" class="ef-link-ctrl" style="min-height: 32px;"></div>
+            </div>
+            <div class="ef-field-group">
+              <label class="ef-label">Grupo de Artículos</label>
+              <div id="ef-maint-item-group-ctrl" class="ef-link-ctrl" style="min-height: 32px;"></div>
+            </div>
+            <div class="ef-field-group" style="grid-column: span 2;">
+              <label class="ef-label">Descripción</label>
+              <textarea id="ef-maint-item-desc" class="ef-textarea" style="width:100%; height:60px;"></textarea>
+            </div>
+          </div>
+          <div style="margin-top:20px; text-align:right;">
+            <button id="ef-maint-item-btn-delete" class="ef-btn" style="background:#ef4444; color:white; padding:8px 24px; display:none; margin-right:8px;">Eliminar Producto</button>
+            <button id="ef-maint-item-btn-save" class="ef-btn ef-btn-primary" style="padding:8px 24px;">Guardar Producto</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Maint Tab Content: Precios -->
+    <div class="ef-maint-tab-content" id="ef-maint-tab-precios" style="display:none;">
+      <div class="ef-analytics-card" style="box-shadow: var(--ef-shadow); padding:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-weight:700; color:var(--ef-primary); font-size:16px;">Mantenimiento de Precios</span>
+            <select id="ef-maint-price-list-select" class="ef-select" style="width:240px; padding: 4px 8px; font-size: 13px;"></select>
+          </div>
+          <input type="text" id="ef-maint-prices-search" class="ef-input" placeholder="Filtrar por nombre..." style="width:220px;" />
+        </div>
+        <div class="ef-table-wrapper" style="max-height: 400px; overflow-y: auto;">
+          <table class="ef-table">
+            <thead>
+              <tr>
+                <th class="ef-th" style="width:150px;">Código</th>
+                <th class="ef-th">Nombre Producto</th>
+                <th class="ef-th" style="width:100px;">UOM</th>
+                <th class="ef-th" style="width:180px; text-align:right;">Precio Standard</th>
+                <th class="ef-th" style="width:120px;"></th>
+              </tr>
+            </thead>
+            <tbody id="ef-maint-prices-tbody">
+              <!-- Dynamically loaded -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
 </div><!-- ef-main-layout -->
 		`);
 
@@ -875,10 +1035,18 @@ class EFastSalePage {
 		this.$body.find(".ef-nav-btn").removeClass("ef-nav-active");
 		this.$body.find(`.ef-nav-btn[data-view="${view}"]`).addClass("ef-nav-active");
 
+		// Show action bar ONLY for billing view
+		if (view === "billing") {
+			$(this.wrapper).find("#ef-action-bar").show();
+		} else {
+			$(this.wrapper).find("#ef-action-bar").hide();
+		}
+
 		if (view === "dashboard") {
 			this.$body.find("#ef-dashboard-view").show();
 			this.$body.find("#ef-billing-view").hide();
 			this.$body.find("#ef-reports-view").hide();
+			this.$body.find("#ef-maintenance-view").hide();
 			// Clear URL query params
 			frappe.set_route("efast-sale");
 			this._load_dashboard_data();
@@ -886,6 +1054,7 @@ class EFastSalePage {
 			this.$body.find("#ef-dashboard-view").hide();
 			this.$body.find("#ef-billing-view").show();
 			this.$body.find("#ef-reports-view").hide();
+			this.$body.find("#ef-maintenance-view").hide();
 			if (this.doc && this.doc.name && this.doc.name !== "new") {
 				frappe.set_route("efast-sale", "", { invoice: this.doc.name });
 			} else {
@@ -896,8 +1065,16 @@ class EFastSalePage {
 			this.$body.find("#ef-dashboard-view").hide();
 			this.$body.find("#ef-billing-view").hide();
 			this.$body.find("#ef-reports-view").show();
+			this.$body.find("#ef-maintenance-view").hide();
 			frappe.set_route("efast-sale", "", { view: "reports" });
 			this._load_reports_view();
+		} else if (view === "maintenance") {
+			this.$body.find("#ef-dashboard-view").hide();
+			this.$body.find("#ef-billing-view").hide();
+			this.$body.find("#ef-reports-view").hide();
+			this.$body.find("#ef-maintenance-view").show();
+			frappe.set_route("efast-sale", "", { view: "maintenance" });
+			this._load_maintenance_view();
 		}
 	}
 
@@ -1040,7 +1217,11 @@ class EFastSalePage {
 						data.invoices.forEach((inv) => {
 							let bfel_badge = "";
 							const status = inv.bfel_status || "";
-							if (status.includes("Procesada")) {
+							if (inv.docstatus === 2 || inv.bfel_documento_anulado === 1) {
+								bfel_badge = `<span class="ef-badge ef-badge-cancelled" style="background:#fee2e2; color:#991b1b; font-weight: bold;">Anulado Fel</span>`;
+							} else if (inv.docstatus === 1 && !inv.bfel_uuid) {
+								bfel_badge = `<span class="ef-badge ef-badge-warning" style="background:#ffeaa7; color:#d63031; font-weight: bold;">X CERTIFICAR</span>`;
+							} else if (status.includes("Procesada")) {
 								bfel_badge = `<span class="ef-badge ef-badge-active" style="background:#d8f3dc; color:#2dc653;">Certificada</span>`;
 							} else if (status.includes("Enviar")) {
 								bfel_badge = `<span class="ef-badge ef-badge-new" style="background:#ffe3e0; color:#e63946;">Pendiente</span>`;
@@ -1139,6 +1320,52 @@ class EFastSalePage {
   --ef-shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
   --ef-shadow-lg: 0 10px 25px rgba(0,0,0,.12);
   --ef-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Fullscreen Focus Mode */
+body.facex-fullscreen-mode .navbar,
+body.facex-fullscreen-mode .page-head,
+body.facex-fullscreen-mode .layout-side-section,
+body.facex-fullscreen-mode .standard-sidebar-wrapper,
+body.facex-fullscreen-mode .standard-sidebar,
+body.facex-fullscreen-mode .desk-sidebar,
+body.facex-fullscreen-mode .sidebar-left,
+body.facex-fullscreen-mode .left-sidebar,
+body.facex-fullscreen-mode .sidebar,
+body.facex-fullscreen-mode .page-sidebar,
+body.facex-fullscreen-mode .body-sidebar-container,
+body.facex-fullscreen-mode .body-sidebar,
+body.facex-fullscreen-mode .footer {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.facex-fullscreen-mode .layout-main-section,
+body.facex-fullscreen-mode .page-content,
+body.facex-fullscreen-mode .page-container,
+body.facex-fullscreen-mode .layout-main,
+body.facex-fullscreen-mode .page-body,
+body.facex-fullscreen-mode .workspace-layout,
+body.facex-fullscreen-mode .layout-container,
+body.facex-fullscreen-mode #space-layout,
+body.facex-fullscreen-mode .main-section {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  display: block !important;
+}
+
+body.facex-fullscreen-mode .ef-main-layout {
+  margin-top: 0 !important;
 }
 
 .ef-wrapper {
@@ -2095,7 +2322,7 @@ class EFastSalePage {
 			args: {
 				doctype: "Customer",
 				filters: { name: customer },
-				fieldname: ["tax_id", "payment_terms", "customer_name", "default_sales_partner"],
+				fieldname: ["tax_id", "bfel_id_receptor", "payment_terms", "customer_name", "default_sales_partner", "default_price_list"],
 			},
 			callback: (r) => {
 				if (!r.exc && r.message) {
@@ -2107,9 +2334,14 @@ class EFastSalePage {
 						this.$body.find("#ef-bfel-nombre").val(cname);
 					}
 
-					if (r.message.tax_id) {
-						this.doc.bfel_nit = r.message.tax_id;
-						this.$body.find("#ef-bfel-nit").val(r.message.tax_id);
+					if (r.message.default_price_list) {
+						this.doc.selling_price_list = r.message.default_price_list;
+					}
+
+					const nit = r.message.bfel_id_receptor || r.message.tax_id;
+					if (nit) {
+						this.doc.bfel_nit = nit;
+						this.$body.find("#ef-bfel-nit").val(nit);
 					}
 
 					if (r.message.payment_terms && !this.doc.payment_terms_template) {
@@ -2232,7 +2464,8 @@ class EFastSalePage {
 	}
 
 	_item_row_html(idx, item) {
-		const amount = this._calc_amount(item.qty, item.rate, item.discount_percentage);
+		const base_rate = item.price_list_rate !== undefined && item.price_list_rate !== null && parseFloat(item.price_list_rate) > 0 ? parseFloat(item.price_list_rate) : (parseFloat(item.rate) || 0);
+		const amount = this._calc_amount(item.qty, base_rate, item.discount_percentage);
 		return `
 <tr class="ef-tr" data-idx="${idx}" id="ef-row-${idx}">
   <td class="ef-td ef-td-idx">${idx + 1}</td>
@@ -2258,7 +2491,7 @@ class EFastSalePage {
   <td class="ef-td ef-td-num">
     <input type="number" class="ef-cell-input ef-input-num ef-rate"
       data-field="rate" data-idx="${idx}"
-      value="${item.rate || 0}" min="0" step="any" />
+      value="${base_rate || 0}" min="0" step="any" />
   </td>
   <td class="ef-td ef-td-num ef-col-disc">
     <input type="number" class="ef-cell-input ef-input-num ef-disc"
@@ -2285,6 +2518,18 @@ class EFastSalePage {
 			this.doc.items[idx].item_code = value;
 			this._fetch_item_details(idx, value);
 		});
+		$itemCode.on("keydown", (e) => {
+			if (e.key === "Enter") {
+				e.preventDefault();
+				setTimeout(() => {
+					const typed = $itemCode.val().trim();
+					if (typed) {
+						this.doc.items[idx].item_code = typed;
+						this._fetch_item_details(idx, typed);
+					}
+				}, 50);
+			}
+		});
 		$itemCode.on("blur", () => {
 			const typed = $itemCode.val().trim();
 			if (typed && typed !== (this.doc.items[idx].item_code || "")) {
@@ -2305,6 +2550,9 @@ class EFastSalePage {
 			$row.find(`[data-field="${field}"]`).on("input change", (e) => {
 				const val = parseFloat(e.target.value) || 0;
 				this.doc.items[idx][field] = val;
+				if (field === "rate") {
+					this.doc.items[idx].price_list_rate = val;
+				}
 				this._update_row_amount(idx);
 				this._mark_dirty();
 			});
@@ -2371,6 +2619,7 @@ class EFastSalePage {
 				company: this.doc.company || this.defaults.company || "",
 				customer: this.doc.customer || "",
 				warehouse: this.defaults.default_warehouse || "",
+				price_list: this.doc.selling_price_list || "",
 			},
 			callback: (r) => {
 				if (!r.exc && r.message) {
@@ -2396,7 +2645,8 @@ class EFastSalePage {
 	_update_row_amount(idx) {
 		const row = this.doc.items[idx];
 		if (!row) return;
-		row.amount = this._calc_amount(row.qty, row.rate, row.discount_percentage);
+		const base_rate = row.price_list_rate !== undefined && row.price_list_rate !== null && parseFloat(row.price_list_rate) > 0 ? parseFloat(row.price_list_rate) : (parseFloat(row.rate) || 0);
+		row.amount = this._calc_amount(row.qty, base_rate, row.discount_percentage);
 		this.$body.find(`#ef-row-${idx} .ef-amount`).val(_fmt(row.amount));
 		this._update_local_footer();
 	}
@@ -2518,11 +2768,11 @@ class EFastSalePage {
 		let gross = 0;
 		(this.doc.items || []).forEach((r) => {
 			const qty  = parseFloat(r.qty) || 0;
-			const rate = parseFloat(r.rate) || 0;
+			const base_rate = r.price_list_rate !== undefined && r.price_list_rate !== null && parseFloat(r.price_list_rate) > 0 ? parseFloat(r.price_list_rate) : (parseFloat(r.rate) || 0);
 			const disc = parseFloat(r.discount_percentage) || 0;
-			const base = qty * rate;
+			const base = qty * base_rate;
 			grossBeforeDisc += base;
-			gross += parseFloat(r.amount) || (base - base * disc / 100);
+			gross += (base - base * disc / 100);
 		});
 		const itemDiscounts = grossBeforeDisc - gross;
 
@@ -2724,6 +2974,10 @@ class EFastSalePage {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
     <span class="ef-btn-label">Cancelar FEL</span>
   </button>
+  <button id="ef-btn-cancel-doc" class="ef-btn ef-btn-danger" title="Anular Factura ERPNext" style="display:none">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+    <span class="ef-btn-label">Anular</span>
+  </button>
   <button id="ef-btn-print" class="ef-btn ef-btn-info" title="Imprimir (F4)">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
     <span class="ef-btn-label">Imprimir</span>
@@ -2748,7 +3002,8 @@ class EFastSalePage {
     <span class="ef-btn-label">Abrir ERP</span>
   </button>
 </div>`);
-		$("body").append($bar);
+		$(this.wrapper).append($bar);
+		$bar.hide();
 
 		$bar.find("#ef-btn-save").on("click", () => this._action_save());
 		$bar.find("#ef-btn-cancel-changes").on("click", () => this._action_cancel_changes());
@@ -3005,7 +3260,7 @@ class EFastSalePage {
 
 		frappe.confirm(
 			`¿Seguro que desea <strong>Anular</strong> la factura <strong>${this.doc.name}</strong> en ERPNext?<br><br>
-			 <span style="color:red">Esta acción revertirá los asientos contables y de inventario.</span>`,
+			 <span style="color:red; font-weight:bold;">Nota: Dado que este documento aún no ha sido certificado en FEL (SAT), únicamente se anulará de forma local en ERPNext, revirtiendo asientos contables e inventario.</span>`,
 			() => {
 				frappe.call({
 					method: "efast_sale.api.invoice.cancel_invoice",
@@ -3014,7 +3269,7 @@ class EFastSalePage {
 					freeze_message: "Anulando factura...",
 					callback: (r) => {
 						if (!r.exc && r.message && r.message.success) {
-							frappe.show_alert({ message: `Factura <strong>${this.doc.name}</strong> Anulada exitosamente.`, indicator: "green" });
+							frappe.show_alert({ message: `Factura <strong>${this.doc.name}</strong> Anulada localmente con éxito (sin afectación FEL).`, indicator: "green" });
 							this.load_invoice(this.doc.name);
 						}
 					},
@@ -3029,35 +3284,36 @@ class EFastSalePage {
 			method: "efast_sale.api.invoice.get_print_formats",
 			callback: (r) => {
 				const formats = r.message || [];
-				if (formats.length <= 1) {
-					this._open_print(formats[0] || "");
+				let defaultFormat = "";
+				if (this.doc.docstatus === 0) {
+					// Guardada sin validar (Borrador) → buscar la que contenga "COTI"
+					defaultFormat = formats.find(f => f.toUpperCase().includes("COTI")) || "";
+				} else if (this.doc.docstatus === 1) {
+					// Validada → buscar la que contenga "CERTIFI"
+					defaultFormat = formats.find(f => f.toUpperCase().includes("CERTIFI")) || "";
+				}
+
+				if (defaultFormat) {
+					this._open_print(defaultFormat);
 				} else {
-					this._show_print_format_dialog(formats);
+					if (formats.length <= 1) {
+						this._open_print(formats[0] || "");
+					} else {
+						this._show_print_format_dialog(formats);
+					}
 				}
 			},
 		});
 	}
 
 	_action_pdf() {
-		if (!this.doc.bfel_uuid) return;
-		const cacheKey = this.doc.company;
-		if (this._url_pdf_cache && this._url_pdf_cache[cacheKey]) {
-			window.open(this._url_pdf_cache[cacheKey] + this.doc.bfel_uuid, "_blank");
-		} else {
-			frappe.call({
-				method: "frappe.client.get_value",
-				args: {
-					doctype: "BFEL Settings",
-					filters: { company: this.doc.company, enabled: 1 },
-					fieldname: "url_pdf"
-				},
-				callback: (r) => {
-					if (r.message && r.message.url_pdf) {
-						window.open(r.message.url_pdf + this.doc.bfel_uuid, "_blank");
-					}
-				}
-			});
+		if (!this.doc.name || this.doc.name === "new") return;
+		if (!this.doc.bfel_uuid) {
+			frappe.show_alert({ message: "El documento debe estar certificado para descargar su PDF.", indicator: "orange" });
+			return;
 		}
+		const url = frappe.urllib.get_full_url(`/api/method/efast_sale.api.invoice.preview_fel_pdf?invoice_name=${encodeURIComponent(this.doc.name)}`);
+		window.open(url, "_blank");
 	}
 
 	_open_print(format) {
@@ -3199,6 +3455,33 @@ class EFastSalePage {
 				}
 			}
 		});
+
+		// Fullscreen focus mode toggle
+		this.$body.find("#ef-btn-toggle-fullscreen").on("click", (e) => {
+			e.preventDefault();
+			this.toggle_focus_mode();
+		});
+
+		// Apply persisted focus mode on load
+		if (localStorage.getItem("facex-focus-mode") === "true") {
+			$("body").addClass("facex-fullscreen-mode");
+			this.$body.find("#ef-fullscreen-btn-text").text("Modo ERPNext");
+		}
+	}
+
+	toggle_focus_mode() {
+		const is_focus = $("body").hasClass("facex-fullscreen-mode");
+		if (is_focus) {
+			$("body").removeClass("facex-fullscreen-mode");
+			localStorage.setItem("facex-focus-mode", "false");
+			this.$body.find("#ef-fullscreen-btn-text").text("Modo Enfoque");
+			frappe.show_alert({ message: "Modo Enfoque desactivado. Se muestran los marcos de ERPNext.", indicator: "info" });
+		} else {
+			$("body").addClass("facex-fullscreen-mode");
+			localStorage.setItem("facex-focus-mode", "true");
+			this.$body.find("#ef-fullscreen-btn-text").text("Modo ERPNext");
+			frappe.show_alert({ message: "Modo Enfoque activado. Pantalla completa sin distracciones.", indicator: "green" });
+		}
 	}
 
 	// -----------------------------------------------------------------------
@@ -5288,8 +5571,557 @@ class EFastSalePage {
 	}
 
 	_print_payment_receipt(inv_name) {
-		const url = `/printview?doctype=Sales+Invoice&name=${encodeURIComponent(inv_name)}&format=Recibo+de+Pago+FacEx`;
-		window.open(url, "_blank");
+		frappe.call({
+			method: "efast_sale.api.invoice.get_print_formats",
+			callback: (r) => {
+				const formats = r.message || [];
+				const defaultFormat = formats.find(f => f.toUpperCase().includes("RECI")) || "Recibo de Pago FacEx";
+				const url = `/printview?doctype=Sales+Invoice&name=${encodeURIComponent(inv_name)}&format=${encodeURIComponent(defaultFormat)}`;
+				window.open(url, "_blank");
+			}
+		});
+	}
+
+	/* ── Maintenance Section ────────────────────────────────────────── */
+
+	_setup_maintenance() {
+		if (!this.maint_cust_price_list_ctrl) {
+			this.maint_cust_price_list_ctrl = frappe.ui.form.make_control({
+				parent: this.$body.find("#ef-maint-cust-price-list-ctrl")[0],
+				df: {
+					label: "Lista de precios",
+					fieldtype: "Link",
+					fieldname: "default_price_list",
+					options: "Price List",
+					reqd: 0,
+				},
+				render_input: true,
+				only_input: false,
+			});
+			this.maint_cust_price_list_ctrl.refresh();
+		}
+
+		if (!this.maint_cust_payment_terms_ctrl) {
+			this.maint_cust_payment_terms_ctrl = frappe.ui.form.make_control({
+				parent: this.$body.find("#ef-maint-cust-payment-terms-ctrl")[0],
+				df: {
+					label: "Condiciones de pago",
+					fieldtype: "Link",
+					fieldname: "payment_terms",
+					options: "Payment Terms Template",
+					reqd: 0,
+				},
+				render_input: true,
+				only_input: false,
+			});
+			this.maint_cust_payment_terms_ctrl.refresh();
+		}
+		if (!this.maint_item_uom_ctrl) {
+			this.maint_item_uom_ctrl = frappe.ui.form.make_control({
+				parent: this.$body.find("#ef-maint-item-uom-ctrl")[0],
+				df: {
+					label: "UOM",
+					fieldtype: "Link",
+					fieldname: "stock_uom",
+					options: "UOM",
+					reqd: 1,
+				},
+				render_input: true,
+				only_input: false,
+			});
+			this.maint_item_uom_ctrl.refresh();
+		}
+
+		if (!this.maint_item_group_ctrl) {
+			this.maint_item_group_ctrl = frappe.ui.form.make_control({
+				parent: this.$body.find("#ef-maint-item-group-ctrl")[0],
+				df: {
+					label: "Grupo de artículos",
+					fieldtype: "Link",
+					fieldname: "item_group",
+					options: "Item Group",
+					reqd: 0,
+				},
+				render_input: true,
+				only_input: false,
+			});
+			this.maint_item_group_ctrl.refresh();
+		}
+
+		// Sub-tab switching
+		this.$body.on("click", ".ef-maint-tab-btn", (e) => {
+			const tab = $(e.currentTarget).data("maint-tab");
+			this.$body.find(".ef-maint-tab-btn").removeClass("ef-tab-active");
+			$(e.currentTarget).addClass("ef-tab-active");
+			this.$body.find(".ef-maint-tab-content").hide();
+			this.$body.find(`#ef-maint-tab-${tab}`).show();
+			this._on_maint_tab_switch(tab);
+		});
+
+		// ── Customers ──
+		let custTimer = null;
+		this.$body.find("#ef-maint-cust-search").on("input", (e) => {
+			clearTimeout(custTimer);
+			custTimer = setTimeout(() => {
+				this._load_maint_customers($(e.target).val());
+			}, 250);
+		});
+
+		this.$body.find("#ef-maint-cust-btn-load").on("click", () => {
+			const txt = this.$body.find("#ef-maint-cust-search").val();
+			this._load_maint_customers(txt);
+		});
+
+		this.$body.find("#ef-maint-cust-btn-new").on("click", () => {
+			this._clear_maint_cust_form();
+		});
+
+		this.$body.find("#ef-maint-cust-btn-save").on("click", () => {
+			this._save_maint_customer();
+		});
+
+		// ── Products ──
+		let itemTimer = null;
+		this.$body.find("#ef-maint-item-search").on("input", (e) => {
+			clearTimeout(itemTimer);
+			itemTimer = setTimeout(() => {
+				this._load_maint_items($(e.target).val());
+			}, 250);
+		});
+
+		this.$body.find("#ef-maint-item-btn-load").on("click", () => {
+			const txt = this.$body.find("#ef-maint-item-search").val();
+			this._load_maint_items(txt);
+		});
+
+		this.$body.find("#ef-maint-item-btn-new").on("click", () => {
+			this._clear_maint_item_form();
+		});
+
+		this.$body.find("#ef-maint-item-btn-save").on("click", () => {
+			this._save_maint_item();
+		});
+
+		// ── Prices ──
+		let priceTimer = null;
+		this.$body.find("#ef-maint-prices-search").on("input", (e) => {
+			clearTimeout(priceTimer);
+			priceTimer = setTimeout(() => {
+				this._load_maint_prices($(e.target).val());
+			}, 250);
+		});
+
+		this.$body.find("#ef-maint-price-list-select").on("change", () => {
+			this._load_maint_prices();
+		});
+
+		this.$body.find("#ef-maint-cust-btn-delete").on("click", () => {
+			this._delete_maint_customer();
+		});
+
+		this.$body.find("#ef-maint-item-btn-delete").on("click", () => {
+			this._delete_maint_item();
+		});
+	}
+
+	_load_maintenance_view() {
+		// Default tab is Clientes
+		this.$body.find(".ef-maint-tab-btn").removeClass("ef-tab-active");
+		this.$body.find('.ef-maint-tab-btn[data-maint-tab="clientes"]').addClass("ef-tab-active");
+		this.$body.find(".ef-maint-tab-content").hide();
+		this.$body.find("#ef-maint-tab-clientes").show();
+		this._on_maint_tab_switch("clientes");
+	}
+
+	_on_maint_tab_switch(tab) {
+		if (tab === "clientes") {
+			this._load_maint_customers();
+			this._clear_maint_cust_form();
+		} else if (tab === "productos") {
+			this._load_maint_items();
+			this._clear_maint_item_form();
+		} else if (tab === "precios") {
+			this._load_price_lists_dropdown_then_load_prices();
+		}
+	}
+
+	// ── Price Lists Dropdown ──
+
+	_load_price_lists_dropdown_then_load_prices() {
+		const $select = this.$body.find("#ef-maint-price-list-select");
+		$select.empty().append('<option value="">Cargando listas...</option>');
+
+		frappe.call({
+			method: "efast_sale.api.item.get_price_lists",
+			callback: (r) => {
+				$select.empty();
+				const lists = r.message || [];
+				if (lists.length === 0) {
+					$select.append('<option value="">Sin listas activas</option>');
+					return;
+				}
+				lists.forEach((list) => {
+					// We prioritize Selling price lists or show both
+					const label = `${list.name} (${list.currency})`;
+					$select.append(`<option value="${_esc(list.name)}">${_esc(label)}</option>`);
+				});
+
+				// Auto-select defaults
+				const defaultList = this.defaults.default_price_list || "Standard Selling";
+				if ($select.find(`option[value="${defaultList}"]`).length) {
+					$select.val(defaultList);
+				} else if (lists.length > 0) {
+					$select.val(lists[0].name);
+				}
+
+				this._load_maint_prices();
+			}
+		});
+	}
+
+	// ── Customers Maintenance ──
+
+	_load_maint_customers(txt = "") {
+		const $list = this.$body.find("#ef-maint-cust-list");
+		$list.html('<div style="text-align:center; padding:10px; color:#64748b;">Cargando...</div>');
+
+		frappe.call({
+			method: "efast_sale.api.item.get_customers_list",
+			args: { txt },
+			callback: (r) => {
+				$list.empty();
+				const customers = r.message || [];
+				if (customers.length === 0) {
+					$list.html('<div style="text-align:center; padding:10px; color:#64748b;">Sin clientes. Use "Cargar Lista" o busque.</div>');
+					return;
+				}
+				customers.forEach((c) => {
+					const $item = $(`
+						<div class="ef-cust-result" style="padding:8px 12px; cursor:pointer; border-radius:6px; border:1px solid var(--ef-border); background:#ffffff; margin-bottom: 4px;">
+							<div style="font-weight:600; color:var(--ef-text);" class="ef-maint-cust-name-lbl"></div>
+							<div style="font-size:11px; color:#64748b;" class="ef-maint-cust-id-lbl"></div>
+						</div>
+					`);
+					$item.find(".ef-maint-cust-name-lbl").text(c.customer_name || c.name);
+					$item.find(".ef-maint-cust-id-lbl").text(`${c.name} ${c.tax_id ? `| NIT: ${c.tax_id}` : ""}`);
+					
+					$item.on("click", () => {
+						this.$body.find("#ef-maint-cust-list .ef-cust-result").css("background", "#ffffff");
+						$item.css("background", "#e0e7ff");
+						this._load_maint_customer_details(c.name);
+					});
+					$list.append($item);
+				});
+			}
+		});
+	}
+
+	_load_maint_customer_details(name) {
+		frappe.call({
+			method: "efast_sale.api.customer.get_customer",
+			args: { name },
+			callback: (r) => {
+				if (r.message) {
+					const c = r.message;
+					this._current_maint_cust_name = c.name;
+					this.$body.find("#ef-maint-cust-title").text(`Editar: ${c.customer_name}`);
+					this.$body.find("#ef-maint-cust-name").val(c.customer_name);
+					this.$body.find("#ef-maint-cust-ident").val(c.bfel_identificacion);
+					this.$body.find("#ef-maint-cust-receptor").val(c.bfel_id_receptor);
+					this.$body.find("#ef-maint-cust-phone").val(c.custom_telefono);
+					this.$body.find("#ef-maint-cust-addr").val(c.custom_direccion);
+					this.$body.find("#ef-maint-cust-dept").val(c.custom_departamento);
+					if (this.maint_cust_price_list_ctrl) {
+						this.maint_cust_price_list_ctrl.set_value(c.default_price_list || "");
+					}
+					if (this.maint_cust_payment_terms_ctrl) {
+						this.maint_cust_payment_terms_ctrl.set_value(c.payment_terms || "");
+					}
+					this.$body.find("#ef-maint-cust-btn-delete").show();
+				}
+			}
+		});
+	}
+
+	_clear_maint_cust_form() {
+		this._current_maint_cust_name = null;
+		this.$body.find("#ef-maint-cust-title").text("Nuevo Cliente");
+		this.$body.find("#ef-maint-cust-name").val("");
+		this.$body.find("#ef-maint-cust-ident").val("");
+		this.$body.find("#ef-maint-cust-receptor").val("");
+		this.$body.find("#ef-maint-cust-phone").val("");
+		this.$body.find("#ef-maint-cust-addr").val("");
+		this.$body.find("#ef-maint-cust-dept").val("");
+		if (this.maint_cust_price_list_ctrl) {
+			this.maint_cust_price_list_ctrl.set_value("");
+		}
+		if (this.maint_cust_payment_terms_ctrl) {
+			this.maint_cust_payment_terms_ctrl.set_value("");
+		}
+		this.$body.find("#ef-maint-cust-btn-delete").hide();
+		this.$body.find("#ef-maint-cust-list .ef-cust-result").css("background", "#ffffff");
+	}
+
+	_save_maint_customer() {
+		const name = this._current_maint_cust_name || "";
+		const customer_name = this.$body.find("#ef-maint-cust-name").val().trim();
+		if (!customer_name) {
+			frappe.show_alert({ message: "El nombre es obligatorio.", indicator: "red" });
+			return;
+		}
+
+		const data = {
+			name,
+			customer_name,
+			bfel_identificacion: this.$body.find("#ef-maint-cust-ident").val(),
+			bfel_id_receptor: this.$body.find("#ef-maint-cust-receptor").val(),
+			custom_telefono: this.$body.find("#ef-maint-cust-phone").val(),
+			custom_direccion: this.$body.find("#ef-maint-cust-addr").val(),
+			custom_departamento: this.$body.find("#ef-maint-cust-dept").val(),
+			default_price_list: this.maint_cust_price_list_ctrl ? this.maint_cust_price_list_ctrl.get_value() : "",
+			payment_terms: this.maint_cust_payment_terms_ctrl ? this.maint_cust_payment_terms_ctrl.get_value() : ""
+		};
+
+		frappe.call({
+			method: "efast_sale.api.customer.create_or_update_customer",
+			args: { data_json: JSON.stringify(data) },
+			freeze: true,
+			freeze_message: "Guardando cliente...",
+			callback: (r) => {
+				if (!r.exc) {
+					frappe.show_alert({ message: "Cliente guardado exitosamente", indicator: "green" });
+					this._load_maint_customers();
+					this._clear_maint_cust_form();
+				}
+			}
+		});
+	}
+
+	// ── Products Maintenance ──
+
+	_load_maint_items(txt = "") {
+		const $list = this.$body.find("#ef-maint-item-list");
+		$list.html('<div style="text-align:center; padding:10px; color:#64748b;">Cargando...</div>');
+
+		frappe.call({
+			method: "efast_sale.api.item.search_items",
+			args: { txt },
+			callback: (r) => {
+				$list.empty();
+				const items = r.message || [];
+				if (items.length === 0) {
+					$list.html('<div style="text-align:center; padding:10px; color:#64748b;">Sin productos. Use "Cargar Lista" o busque.</div>');
+					return;
+				}
+				items.forEach((it) => {
+					const $item = $(`
+						<div class="ef-cust-result" style="padding:8px 12px; cursor:pointer; border-radius:6px; border:1px solid var(--ef-border); background:#ffffff; margin-bottom: 4px;">
+							<div style="font-weight:600; color:var(--ef-text);" class="ef-maint-item-name-lbl"></div>
+							<div style="font-size:11px; color:#64748b;" class="ef-maint-item-code-lbl"></div>
+						</div>
+					`);
+					$item.find(".ef-maint-item-name-lbl").text(it.item_name || it.name);
+					$item.find(".ef-maint-item-code-lbl").text(`Código: ${it.name} | UOM: ${it.stock_uom}`);
+					
+					$item.on("click", () => {
+						this.$body.find("#ef-maint-item-list .ef-cust-result").css("background", "#ffffff");
+						$item.css("background", "#e0e7ff");
+						this._load_maint_item_details(it.name);
+					});
+					$list.append($item);
+				});
+			}
+		});
+	}
+
+	_load_maint_item_details(name) {
+		const plist = this.$body.find("#ef-maint-price-list-select").val() || "";
+		frappe.call({
+			method: "efast_sale.api.item.get_item",
+			args: { name, price_list: plist },
+			callback: (r) => {
+				if (r.message) {
+					const it = r.message;
+					this._current_maint_item_code = it.item_code;
+					this.$body.find("#ef-maint-item-title").text(`Editar: ${it.item_name}`);
+					this.$body.find("#ef-maint-item-code").val(it.item_code).prop("disabled", true);
+					this.$body.find("#ef-maint-item-name").val(it.item_name);
+					if (this.maint_item_uom_ctrl) {
+						this.maint_item_uom_ctrl.set_value(it.stock_uom || "Nos");
+					}
+					if (this.maint_item_group_ctrl) {
+						this.maint_item_group_ctrl.set_value(it.item_group || "");
+					}
+					this.$body.find("#ef-maint-item-desc").val(it.description);
+					this.$body.find("#ef-maint-item-btn-delete").show();
+				}
+			}
+		});
+	}
+
+	_clear_maint_item_form() {
+		this._current_maint_item_code = null;
+		this.$body.find("#ef-maint-item-title").text("Nuevo Producto");
+		this.$body.find("#ef-maint-item-code").val("").prop("disabled", false);
+		this.$body.find("#ef-maint-item-name").val("");
+		if (this.maint_item_uom_ctrl) {
+			this.maint_item_uom_ctrl.set_value("Nos");
+		}
+		if (this.maint_item_group_ctrl) {
+			this.maint_item_group_ctrl.set_value("");
+		}
+		this.$body.find("#ef-maint-item-desc").val("");
+		this.$body.find("#ef-maint-item-btn-delete").hide();
+		this.$body.find("#ef-maint-item-list .ef-cust-result").css("background", "#ffffff");
+	}
+
+	_save_maint_item() {
+		const item_code = this.$body.find("#ef-maint-item-code").val().trim();
+		const item_name = this.$body.find("#ef-maint-item-name").val().trim();
+		if (!item_code || !item_name) {
+			frappe.show_alert({ message: "Código y Nombre son campos obligatorios.", indicator: "red" });
+			return;
+		}
+
+		const plist = this.$body.find("#ef-maint-price-list-select").val() || "";
+		const data = {
+			item_code,
+			item_name,
+			stock_uom: this.maint_item_uom_ctrl ? this.maint_item_uom_ctrl.get_value() : "Nos",
+			item_group: this.maint_item_group_ctrl ? this.maint_item_group_ctrl.get_value() : "",
+			price_list: plist,
+			description: this.$body.find("#ef-maint-item-desc").val()
+		};
+
+		frappe.call({
+			method: "efast_sale.api.item.create_or_update_item",
+			args: { data_json: JSON.stringify(data) },
+			freeze: true,
+			freeze_message: "Guardando producto...",
+			callback: (r) => {
+				if (!r.exc) {
+					frappe.show_alert({ message: "Producto guardado exitosamente", indicator: "green" });
+					this._load_maint_items();
+					this._clear_maint_item_form();
+				}
+			}
+		});
+	}
+
+	// ── Prices Maintenance ──
+
+	_load_maint_prices(txt = "") {
+		const $tbody = this.$body.find("#ef-maint-prices-tbody");
+		const plist = this.$body.find("#ef-maint-price-list-select").val();
+
+		if (!plist) {
+			$tbody.html('<tr><td colspan="5" style="text-align:center; padding:10px; color:#64748b;">Seleccione una Lista de Precios primero</td></tr>');
+			return;
+		}
+
+		$tbody.html('<tr><td colspan="5" style="text-align:center; padding:10px; color:#64748b;">Cargando precios...</td></tr>');
+
+		frappe.call({
+			method: "efast_sale.api.item.get_all_prices",
+			args: { price_list: plist, txt },
+			callback: (r) => {
+				$tbody.empty();
+				const items = r.message || [];
+				if (items.length === 0) {
+					$tbody.html('<tr><td colspan="5" style="text-align:center; padding:10px; color:#64748b;">Sin productos</td></tr>');
+					return;
+				}
+				items.forEach((it) => {
+					const $row = $(`
+						<tr class="ef-tr">
+							<td class="ef-td font-weight-bold ef-lbl-code"></td>
+							<td class="ef-td ef-lbl-name"></td>
+							<td class="ef-td ef-lbl-uom"></td>
+							<td class="ef-td" style="text-align:right;">
+								<span style="font-size:12px; font-weight:600; color:#64748b; margin-right:4px;" class="ef-lbl-currency"></span>
+								<input type="number" class="ef-input ef-input-num ef-price-input" style="width:120px; display:inline-block;" step="any" min="0" value="${it.price}" />
+							</td>
+							<td class="ef-td" style="text-align:center;">
+								<button class="ef-btn ef-btn-sm ef-btn-primary ef-btn-save-price" style="padding:4px 10px; font-size:11px;">Guardar</button>
+							</td>
+						</tr>
+					`);
+					$row.find(".ef-lbl-code").text(it.item_code);
+					$row.find(".ef-lbl-name").text(it.item_name);
+					$row.find(".ef-lbl-uom").text(it.stock_uom);
+					$row.find(".ef-lbl-currency").text(it.currency || "GTQ");
+					
+					$row.find(".ef-btn-save-price").on("click", () => {
+						const priceVal = parseFloat($row.find(".ef-price-input").val()) || 0;
+						frappe.call({
+							method: "efast_sale.api.item.update_item_price",
+							args: {
+								item_code: it.item_code,
+								rate: priceVal,
+								price_list: plist
+							},
+							freeze: true,
+							freeze_message: "Actualizando precio...",
+							callback: (res) => {
+								if (!res.exc) {
+									frappe.show_alert({ message: `Precio actualizado para ${it.item_code} en ${plist}`, indicator: "green" });
+								}
+							}
+						});
+					});
+
+					$tbody.append($row);
+				});
+			}
+		});
+	}
+
+	_delete_maint_customer() {
+		const name = this._current_maint_cust_name;
+		if (!name) return;
+
+		frappe.confirm(
+			`¿Estás seguro de que deseas eliminar permanentemente el cliente <strong>${name}</strong>? Esta acción no se puede deshacer.`,
+			() => {
+				frappe.call({
+					method: "efast_sale.api.item.delete_customer",
+					args: { customer_name: name },
+					freeze: true,
+					freeze_message: "Eliminando cliente...",
+					callback: (r) => {
+						if (!r.exc) {
+							frappe.show_alert({ message: "Cliente eliminado exitosamente", indicator: "green" });
+							this._load_maint_customers();
+							this._clear_maint_cust_form();
+						}
+					}
+				});
+			}
+		);
+	}
+
+	_delete_maint_item() {
+		const code = this._current_maint_item_code;
+		if (!code) return;
+
+		frappe.confirm(
+			`¿Estás seguro de que deseas eliminar permanentemente el producto con código <strong>${code}</strong>? Esta acción no se puede deshacer.`,
+			() => {
+				frappe.call({
+					method: "efast_sale.api.item.delete_item",
+					args: { item_code: code },
+					freeze: true,
+					freeze_message: "Eliminando producto...",
+					callback: (r) => {
+						if (!r.exc) {
+							frappe.show_alert({ message: "Producto eliminado exitosamente", indicator: "green" });
+							this._load_maint_items();
+							this._clear_maint_item_form();
+						}
+					}
+				});
+			}
+		);
 	}
 }
 

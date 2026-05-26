@@ -158,7 +158,7 @@ def _get_naming_series(doctype: str) -> list:
 
 @frappe.whitelist()
 def get_item_details(item_code: str, company: str = "", customer: str = "",
-                     warehouse: str = "", posting_date: str = ""):
+                     warehouse: str = "", posting_date: str = "", price_list: str = ""):
     """
     Retorna datos básicos de un item para poblar una fila del grid.
     No duplica la lógica de pricing — el precio final lo calcula ERPNext en save().
@@ -168,18 +168,25 @@ def get_item_details(item_code: str, company: str = "", customer: str = "",
 
     item = frappe.get_cached_doc("Item", item_code)
 
+    # Buscar la lista de precios a usar
+    plist = price_list
+    if not plist and customer:
+        plist = frappe.db.get_value("Customer", customer, "default_price_list")
+    
+    if not plist:
+        plist = (
+            frappe.defaults.get_user_default("selling_price_list")
+            or frappe.db.get_single_value("Selling Settings", "selling_price_list")
+            or "Standard Selling"
+        )
+
     # Precio estándar (si existe)
     rate = 0.0
-    price_list = (
-        frappe.defaults.get_user_default("selling_price_list")
-        or frappe.db.get_single_value("Selling Settings", "selling_price_list")
-        or "Standard Selling"
-    )
     item_price = frappe.db.get_value(
         "Item Price",
         {
             "item_code": item_code,
-            "price_list": price_list,
+            "price_list": plist,
             "selling": 1,
         },
         "price_list_rate",
@@ -242,6 +249,22 @@ def save_draft(doc_json: str):
     Retorna el documento completo con totales calculados.
     """
     data = frappe.parse_json(doc_json)
+    
+    # Pre-procesar items para asegurar que el descuento se aplique correctamente en ERPNext
+    if "items" in data:
+        for item_row in data["items"]:
+            disc_pct = float(item_row.get("discount_percentage") or 0)
+            original_rate = float(item_row.get("rate") or 0)
+            if disc_pct > 0:
+                item_row["price_list_rate"] = original_rate
+                item_row["discount_percentage"] = disc_pct
+                # rate tiene que ser el precio descontado para ERPNext
+                item_row["rate"] = original_rate - (original_rate * disc_pct / 100.0)
+            else:
+                item_row["price_list_rate"] = original_rate
+                item_row["discount_percentage"] = 0.0
+                item_row["rate"] = original_rate
+
     name = (data.get("name") or "").strip()
     is_new = not name or name == "new"
 
@@ -440,6 +463,14 @@ def _sync_custom_print_formats():
         "Recibo de Pago FacEx": {
             "html": os.path.join(base_dir, "templates", "print_formats", "recibo_pago_facex.html"),
             "css": os.path.join(base_dir, "templates", "print_formats", "recibo_pago_facex.css"),
+        },
+        "FAC FEL": {
+            "html": os.path.join(base_dir, "templates", "print_formats", "fac_fel.html"),
+            "css": os.path.join(base_dir, "templates", "print_formats", "fac_fel.css"),
+        },
+        "FAC CERTIFI": {
+            "html": os.path.join(base_dir, "templates", "print_formats", "fac_fel.html"),
+            "css": os.path.join(base_dir, "templates", "print_formats", "fac_fel.css"),
         }
     }
     
@@ -454,13 +485,9 @@ def _sync_custom_print_formats():
                 css_content = f.read()
                 
             if frappe.db.exists("Print Format", name):
-                pf = frappe.get_doc("Print Format", name)
-                if pf.html != html_content or pf.css != css_content:
-                    pf.html = html_content
-                    pf.css = css_content
-                    pf.print_format_type = "Jinja"
-                    pf.save(ignore_permissions=True)
-                    frappe.db.commit()
+                # Si ya existe en la base de datos de ERPNext, NO sobreescribirlo con los archivos del repo.
+                # De esta forma, el usuario puede editar y diseñar los formatos directamente desde la UI de ERPNext.
+                pass
             else:
                 frappe.get_doc({
                     "doctype": "Print Format",
@@ -469,7 +496,8 @@ def _sync_custom_print_formats():
                     "print_format_type": "Jinja",
                     "html": html_content,
                     "css": css_content,
-                    "standard": "No"
+                    "standard": "No",
+                    "custom_format": 1
                 }).insert(ignore_permissions=True)
                 frappe.db.commit()
         except Exception:
@@ -564,29 +592,35 @@ def get_dashboard_stats(start_date=None, end_date=None, customer=None, item_code
     if not has_efast_permission():
         frappe.throw("No tiene permisos para ver este tablero.", frappe.PermissionError)
 
-    # 1. Construir filtros base para Sales Invoice
-    filters = {"docstatus": ["in", [0, 1]]}  # Borradores y Validadas
+    # 1. Construir filtros base para Sales Invoice (incluyendo canceladas 2)
+    filters = {"docstatus": ["in", [0, 1, 2]]}
     if start_date and end_date:
         filters["posting_date"] = ["between", [start_date, end_date]]
     if customer:
         filters["customer"] = customer
 
     # Cargar facturas
-    invoices = frappe.db.get_all(
+    raw_invoices = frappe.db.get_all(
         "Sales Invoice",
         filters=filters,
-        fields=["name", "customer", "customer_name", "posting_date", "grand_total", "bfel_status", "bfel_uuid", "docstatus"],
+        fields=["name", "customer", "customer_name", "posting_date", "grand_total", "bfel_status", "bfel_uuid", "docstatus", "bfel_documento_anulado"],
         order_by="posting_date desc, creation desc"
     )
 
-    # 2. Ventas del día (hoy)
+    # Filtrar facturas: si está cancelada (docstatus=2), solo mostrar si tiene UUID o está anulada en FEL
+    invoices = [
+        inv for inv in raw_invoices
+        if inv.docstatus != 2 or (inv.bfel_uuid or inv.bfel_documento_anulado == 1)
+    ]
+
+    # 2. Ventas del día (hoy) - Excluyendo las canceladas/anuladas del conteo de ventas activas
     today_date = getdate(today())
-    today_invoices = [inv for inv in invoices if getdate(inv.posting_date) == today_date]
+    today_invoices = [inv for inv in invoices if getdate(inv.posting_date) == today_date and inv.docstatus != 2 and inv.bfel_documento_anulado != 1]
     today_total = sum(float(inv.grand_total or 0) for inv in today_invoices)
 
-    # 3. Ventas del mes (mes actual)
+    # 3. Ventas del mes (mes actual) - Excluyendo las canceladas/anuladas
     month_start_date = getdate(today()[:7] + "-01")
-    month_invoices = [inv for inv in invoices if getdate(inv.posting_date) >= month_start_date]
+    month_invoices = [inv for inv in invoices if getdate(inv.posting_date) >= month_start_date and inv.docstatus != 2 and inv.bfel_documento_anulado != 1]
     month_total = sum(float(inv.grand_total or 0) for inv in month_invoices)
 
     # 4. Detalle de items vendidos
@@ -644,7 +678,7 @@ def get_dashboard_stats(start_date=None, end_date=None, customer=None, item_code
         outstanding_balance = frappe.db.get_value(
             "Sales Invoice",
             {"customer": customer, "docstatus": 1},
-            "sum(outstanding_amount)"
+            {"SUM": "outstanding_amount"}
         ) or 0.0
 
         customer_stats = {
@@ -747,5 +781,45 @@ def run_permissions_setup():
         
     frappe.db.commit()
     return "Permissions successfully set for role efast_sale!"
+
+
+@frappe.whitelist()
+def preview_fel_pdf(invoice_name: str):
+    """
+    Descarga el PDF de la FEL desde el proveedor en el servidor y lo sirve como inline
+    con el nombre del archivo establecido como el correlativo de la factura.
+    """
+    import requests
+
+    doc = frappe.get_doc("Sales Invoice", invoice_name)
+    if not doc.bfel_uuid:
+        frappe.throw("La factura no ha sido certificada en FEL.")
+
+    # Obtener la URL del PDF desde la configuración de BFEL
+    url_pdf = frappe.db.get_value(
+        "BFEL Settings",
+        {"company": doc.company, "enabled": 1},
+        "url_pdf"
+    )
+    if not url_pdf:
+        frappe.throw("No se encontró la configuración de URL de PDF en BFEL Settings.")
+
+    full_url = f"{url_pdf}{doc.bfel_uuid}"
+    
+    try:
+        response = requests.get(full_url, timeout=15)
+        response.raise_for_status()
+        pdf_data = response.content
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "eFast Sale: preview_fel_pdf download error")
+        frappe.throw(f"Error al descargar el PDF desde el proveedor FEL: {str(e)}")
+
+    # Responder con el archivo PDF inline
+    frappe.local.response.filename = f"{doc.name}.pdf"
+    frappe.local.response.filecontent = pdf_data
+    frappe.local.response.type = "pdf"
+    frappe.local.response.display_content = "inline"
+
+
 
 
