@@ -24,4 +24,18 @@ doc_events = {
         "validate": "efast_sale.api.customer.sync_customer_nit"
     }
 }
+fixtures = [
+
+    {
+        "dt": "Print Format",
+        "filters": [
+            [
+                "module",
+                "=",
+                "eFast Sale"
+            ]
+        ]
+    }
+
+]
 
