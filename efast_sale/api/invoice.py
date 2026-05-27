@@ -772,7 +772,7 @@ def run_permissions_setup():
             pass
             
     try:
-        page = frappe.get_doc("Page", "efast-sale")
+        page = frappe.get_doc("Page", "facex")
         if not any(r.role == role for r in page.roles):
             page.append("roles", {"role": role})
             page.save(ignore_permissions=True)

@@ -8,16 +8,19 @@
 // Page lifecycle hooks
 // ---------------------------------------------------------------------------
 
-frappe.pages["efast-sale"].on_page_load = function (wrapper) {
+frappe.pages["facex"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
 		title: "FacEx",
 		single_column: true,
 	});
+	// Force focus mode on load immediately to hide ERPNext panel
+	$("body").addClass("facex-fullscreen-mode");
 	wrapper.efast = new EFastSalePage(page, wrapper);
 };
 
-frappe.pages["efast-sale"].on_page_show = function (wrapper) {
+frappe.pages["facex"].on_page_show = function (wrapper) {
+	$("body").addClass("facex-fullscreen-mode");
 	if (!wrapper.efast) return;
 	const params = frappe.utils.get_url_to_dict();
 	if (params.invoice) {
@@ -1048,7 +1051,7 @@ class EFastSalePage {
 			this.$body.find("#ef-reports-view").hide();
 			this.$body.find("#ef-maintenance-view").hide();
 			// Clear URL query params
-			frappe.set_route("efast-sale");
+			frappe.set_route("facex");
 			this._load_dashboard_data();
 		} else if (view === "billing") {
 			this.$body.find("#ef-dashboard-view").hide();
@@ -1056,9 +1059,9 @@ class EFastSalePage {
 			this.$body.find("#ef-reports-view").hide();
 			this.$body.find("#ef-maintenance-view").hide();
 			if (this.doc && this.doc.name && this.doc.name !== "new") {
-				frappe.set_route("efast-sale", "", { invoice: this.doc.name });
+				frappe.set_route("facex", "", { invoice: this.doc.name });
 			} else {
-				frappe.set_route("efast-sale");
+				frappe.set_route("facex");
 			}
 			this._focus_first_field();
 		} else if (view === "reports") {
@@ -1066,14 +1069,14 @@ class EFastSalePage {
 			this.$body.find("#ef-billing-view").hide();
 			this.$body.find("#ef-reports-view").show();
 			this.$body.find("#ef-maintenance-view").hide();
-			frappe.set_route("efast-sale", "", { view: "reports" });
+			frappe.set_route("facex", "", { view: "reports" });
 			this._load_reports_view();
 		} else if (view === "maintenance") {
 			this.$body.find("#ef-dashboard-view").hide();
 			this.$body.find("#ef-billing-view").hide();
 			this.$body.find("#ef-reports-view").hide();
 			this.$body.find("#ef-maintenance-view").show();
-			frappe.set_route("efast-sale", "", { view: "maintenance" });
+			frappe.set_route("facex", "", { view: "maintenance" });
 			this._load_maintenance_view();
 		}
 	}
@@ -3462,11 +3465,10 @@ body.facex-fullscreen-mode .ef-main-layout {
 			this.toggle_focus_mode();
 		});
 
-		// Apply persisted focus mode on load
-		if (localStorage.getItem("facex-focus-mode") === "true") {
-			$("body").addClass("facex-fullscreen-mode");
-			this.$body.find("#ef-fullscreen-btn-text").text("Modo ERPNext");
-		}
+		// Force clean focus mode on load immediately
+		$("body").addClass("facex-fullscreen-mode");
+		localStorage.setItem("facex-focus-mode", "true");
+		this.$body.find("#ef-fullscreen-btn-text").text("Modo ERPNext");
 	}
 
 	toggle_focus_mode() {
